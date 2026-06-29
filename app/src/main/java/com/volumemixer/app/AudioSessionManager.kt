@@ -14,7 +14,6 @@ class AudioSessionManager(private val context: Context) {
     private val packageManager = context.packageManager
     private var callback: ((List<AppAudioInfo>) -> Unit)? = null
 
-    // تخزين مستويات الصوت لكل تطبيق
     private val volumeLevels = mutableMapOf<String, Int>()
     private val muteStates = mutableMapOf<String, Boolean>()
 
@@ -29,9 +28,10 @@ class AudioSessionManager(private val context: Context) {
 
     fun startMonitoring(onAppsChanged: (List<AppAudioInfo>) -> Unit) {
         callback = onAppsChanged
-        audioManager.registerAudioPlaybackCallback(playbackCallback, Handler(Looper.getMainLooper()))
-
-        // جلب التطبيقات النشطة فوراً
+        audioManager.registerAudioPlaybackCallback(
+            playbackCallback,
+            Handler(Looper.getMainLooper())
+        )
         val current = audioManager.activePlaybackConfigurations
         val activeApps = getActiveApps(current)
         onAppsChanged(activeApps)
@@ -47,30 +47,20 @@ class AudioSessionManager(private val context: Context) {
         val result = mutableListOf<AppAudioInfo>()
 
         for (config in configs) {
-            if (!config.isActive) continue
-
             val uid = config.clientUid
             val packageName = getPackageFromUid(uid) ?: continue
-
-            // تجنب التكرار
             if (packageName in seen) continue
-            // إخفاء تطبيقنا نفسه
             if (packageName == context.packageName) continue
-
             seen.add(packageName)
 
             val appName = try {
                 val info = packageManager.getApplicationInfo(packageName, 0)
                 packageManager.getApplicationLabel(info).toString()
-            } catch (e: PackageManager.NameNotFoundException) {
-                packageName
-            }
+            } catch (e: PackageManager.NameNotFoundException) { packageName }
 
             val icon = try {
                 packageManager.getApplicationIcon(packageName)
-            } catch (e: Exception) {
-                null
-            }
+            } catch (e: Exception) { null }
 
             result.add(
                 AppAudioInfo(
@@ -83,30 +73,22 @@ class AudioSessionManager(private val context: Context) {
                 )
             )
         }
-
         return result
     }
 
     private fun getPackageFromUid(uid: Int): String? {
         return try {
-            val packages = packageManager.getPackagesForUid(uid)
-            packages?.firstOrNull()
+            packageManager.getPackagesForUid(uid)?.firstOrNull()
         } catch (e: Exception) {
-            Log.w("AudioSessionManager", "Could not get package for uid: $uid")
+            Log.w("AudioSessionManager", "uid: $uid")
             null
         }
     }
 
-    fun saveVolumeLevel(packageName: String, level: Int) {
-        volumeLevels[packageName] = level
-    }
-
-    fun saveMuteState(packageName: String, muted: Boolean) {
-        muteStates[packageName] = muted
-    }
+    fun saveVolumeLevel(packageName: String, level: Int) { volumeLevels[packageName] = level }
+    fun saveMuteState(packageName: String, muted: Boolean) { muteStates[packageName] = muted }
 
     fun getCurrentApps(): List<AppAudioInfo> {
-        val configs = audioManager.activePlaybackConfigurations
-        return getActiveApps(configs)
+        return getActiveApps(audioManager.activePlaybackConfigurations)
     }
 }
