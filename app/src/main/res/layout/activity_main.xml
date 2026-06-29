@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp"
+    android:background="#1A1A2E">
+
+    <!-- أيقونة التطبيق -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🎚️"
+        android:textSize="64sp"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- عنوان التطبيق -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Volume Mixer"
+        android:textSize="28sp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="تحكم في صوت كل تطبيق بشكل مستقل"
+        android:textSize="14sp"
+        android:textColor="#AAAAAA"
+        android:gravity="center"
+        android:layout_marginBottom="40dp"/>
+
+    <!-- حالة الإذن -->
+    <TextView
+        android:id="@+id/permissionStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="جارٍ التحقق..."
+        android:textSize="13sp"
+        android:textColor="#FFD700"
+        android:layout_marginBottom="32dp"/>
+
+    <!-- زر التشغيل -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnStartMixer"
+        android:layout_width="240dp"
+        android:layout_height="56dp"
+        android:text="▶ تشغيل Volume Mixer"
+        android:textSize="16sp"
+        android:backgroundTint="#6C63FF"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- زر الإيقاف -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnStopMixer"
+        android:layout_width="240dp"
+        android:layout_height="56dp"
+        android:text="⏹ إيقاف"
+        android:textSize="16sp"
+        android:backgroundTint="#444444"
+        android:layout_marginBottom="32dp"/>
+
+    <!-- الحالة الحالية -->
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏹️ Volume Mixer متوقف"
+        android:textSize="14sp"
+        android:textColor="#AAAAAA"/>
+
+</LinearLayout>
