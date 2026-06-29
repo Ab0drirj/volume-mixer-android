@@ -17,16 +17,16 @@ import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.volumemixer.app.databinding.FloatingPanelBinding
+import rikka.shizuku.Shizuku
 
 class FloatingPanelService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var floatingView: View? = null
     private lateinit var binding: FloatingPanelBinding
-    private lateinit var audioManager: AudioSessionManager
+    private lateinit var audioSessionManager: AudioSessionManager
     private lateinit var adapter: AppVolumeAdapter
 
-    // موقع النافذة العائمة
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
@@ -35,7 +35,7 @@ class FloatingPanelService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        audioManager = AudioSessionManager(this)
+        audioSessionManager = AudioSessionManager(this)
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
@@ -62,24 +62,25 @@ class FloatingPanelService : Service() {
             y = 200
         }
 
-        // إعداد الـ RecyclerView
         adapter = AppVolumeAdapter(
             onVolumeChanged = { packageName, level ->
-                audioManager.saveVolumeLevel(packageName, level)
+                audioSessionManager.saveVolumeLevel(packageName, level)
+                // التحكم الحقيقي في الصوت عبر Shizuku
+                setVolumeWithShizuku(level)
             },
             onMuteToggled = { packageName, muted ->
-                audioManager.saveMuteState(packageName, muted)
+                audioSessionManager.saveMuteState(packageName, muted)
+                val volume = if (muted) 0 else audioSessionManager.getCurrentApps()
+                    .find { it.packageName == packageName }?.volumeLevel ?: 80
+                setVolumeWithShizuku(if (muted) 0 else volume)
             }
         )
+
         binding.appsRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.appsRecyclerView.adapter = adapter
 
-        // زر الإغلاق
-        binding.btnClose.setOnClickListener {
-            stopSelf()
-        }
+        binding.btnClose.setOnClickListener { stopSelf() }
 
-        // سحب النافذة
         binding.panelHeader.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -102,8 +103,26 @@ class FloatingPanelService : Service() {
         windowManager.addView(floatingView, params)
     }
 
+    private fun setVolumeWithShizuku(level: Int) {
+        try {
+            if (Shizuku.pingBinder()) {
+                // تحويل 0-100 إلى 0-15 (نطاق صوت أندرويد)
+                val androidVolume = (level * 15 / 100)
+                val process = Shizuku.newProcess(
+                    arrayOf("cmd", "media_session", "volume",
+                        "--stream", "3",
+                        "--set", androidVolume.toString()),
+                    null, null
+                )
+                process.waitFor()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingPanel", "Shizuku volume error: ${e.message}")
+        }
+    }
+
     private fun startAudioMonitoring() {
-        audioManager.startMonitoring { apps ->
+        audioSessionManager.startMonitoring { apps ->
             if (apps.isEmpty()) {
                 binding.emptyState.visibility = View.VISIBLE
                 binding.appsRecyclerView.visibility = View.GONE
@@ -118,24 +137,17 @@ class FloatingPanelService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Volume Mixer",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Volume Mixer يعمل في الخلفية"
-            }
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
+                CHANNEL_ID, "Volume Mixer", NotificationManager.IMPORTANCE_LOW
+            ).apply { description = "Volume Mixer يعمل في الخلفية" }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
 
     private fun buildNotification(): Notification {
-        val openIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, openIntent,
+            this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("🎚️ Volume Mixer شغال")
             .setContentText("اضغط لفتح الإعدادات")
@@ -147,7 +159,7 @@ class FloatingPanelService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        audioManager.stopMonitoring()
+        audioSessionManager.stopMonitoring()
         floatingView?.let { windowManager.removeView(it) }
     }
 
