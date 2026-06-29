@@ -22,17 +22,13 @@ jobs:
 
     - name: Fix Gradle Wrapper
       run: |
-        wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip -P /tmp
-        unzip -q /tmp/gradle-8.2-bin.zip -d /opt/gradle
-        export PATH=$PATH:/opt/gradle/gradle-8.2/bin
-        gradle --version
-        gradle wrapper --gradle-version 8.2
+        wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip -P /tmp
+        unzip -q /tmp/gradle-8.9-bin.zip -d /opt/gradle
+        /opt/gradle/gradle-8.9/bin/gradle wrapper --gradle-version 8.9
         chmod +x gradlew
 
     - name: Build Debug APK
-      run: |
-        export PATH=$PATH:/opt/gradle/gradle-8.2/bin
-        ./gradlew assembleDebug --no-daemon --stacktrace
+      run: ./gradlew assembleDebug --no-daemon
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
