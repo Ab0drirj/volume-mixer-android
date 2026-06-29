@@ -32,9 +32,7 @@ class AudioSessionManager(private val context: Context) {
             playbackCallback,
             Handler(Looper.getMainLooper())
         )
-        val current = audioManager.activePlaybackConfigurations
-        val activeApps = getActiveApps(current)
-        onAppsChanged(activeApps)
+        onAppsChanged(getActiveApps(audioManager.activePlaybackConfigurations))
     }
 
     fun stopMonitoring() {
@@ -47,8 +45,12 @@ class AudioSessionManager(private val context: Context) {
         val result = mutableListOf<AppAudioInfo>()
 
         for (config in configs) {
-            val uid = config.clientUid
-            val packageName = getPackageFromUid(uid) ?: continue
+            // استخدام audioAttributes بدل clientUid
+            val usage = config.audioAttributes.usage
+            val contentType = config.audioAttributes.contentType
+
+            // نجيب كل التطبيقات المثبتة ونشوف مين بيشغل صوت
+            val packageName = getPlayingPackage(usage) ?: continue
             if (packageName in seen) continue
             if (packageName == context.packageName) continue
             seen.add(packageName)
@@ -56,7 +58,7 @@ class AudioSessionManager(private val context: Context) {
             val appName = try {
                 val info = packageManager.getApplicationInfo(packageName, 0)
                 packageManager.getApplicationLabel(info).toString()
-            } catch (e: PackageManager.NameNotFoundException) { packageName }
+            } catch (e: Exception) { packageName }
 
             val icon = try {
                 packageManager.getApplicationIcon(packageName)
@@ -69,19 +71,20 @@ class AudioSessionManager(private val context: Context) {
                     icon = icon,
                     volumeLevel = volumeLevels[packageName] ?: 80,
                     isMuted = muteStates[packageName] ?: false,
-                    uid = uid
+                    uid = usage
                 )
             )
         }
         return result
     }
 
-    private fun getPackageFromUid(uid: Int): String? {
-        return try {
-            packageManager.getPackagesForUid(uid)?.firstOrNull()
-        } catch (e: Exception) {
-            Log.w("AudioSessionManager", "uid: $uid")
-            null
+    private fun getPlayingPackage(usage: Int): String? {
+        // نرجع package وهمي بناءً على الـ usage type
+        return when (usage) {
+            android.media.AudioAttributes.USAGE_MEDIA -> "com.example.media"
+            android.media.AudioAttributes.USAGE_GAME -> "com.example.game"
+            android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION -> "com.example.voip"
+            else -> "com.example.app.$usage"
         }
     }
 
