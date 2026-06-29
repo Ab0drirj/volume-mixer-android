@@ -7,6 +7,7 @@ import android.media.AudioPlaybackConfiguration
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import rikka.shizuku.Shizuku
 
 class AudioSessionManager(private val context: Context) {
 
@@ -22,6 +23,55 @@ class AudioSessionManager(private val context: Context) {
             val activeApps = getActiveApps(configs)
             Handler(Looper.getMainLooper()).post {
                 callback?.invoke(activeApps)
+            }
+        }
+    }
+
+    fun isShizukuAvailable(): Boolean {
+        return try {
+            Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun requestShizukuPermission() {
+        try {
+            if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) return
+            Shizuku.requestPermission(1001)
+        } catch (e: Exception) {
+            Log.e("AudioSessionManager", "Shizuku error: ${e.message}")
+        }
+    }
+
+    fun setAppVolume(packageName: String, level: Int) {
+        volumeLevels[packageName] = level
+        if (isShizukuAvailable()) {
+            try {
+                // تحكم حقيقي في الصوت عبر Shizuku
+                val process = Shizuku.newProcess(
+                    arrayOf("cmd", "media_session", "volume", "--stream", "3", "--set", level.toString()),
+                    null, null
+                )
+                process.waitFor()
+            } catch (e: Exception) {
+                Log.e("AudioSessionManager", "Volume control error: ${e.message}")
+            }
+        }
+    }
+
+    fun muteApp(packageName: String, muted: Boolean) {
+        muteStates[packageName] = muted
+        if (isShizukuAvailable()) {
+            try {
+                val volume = if (muted) "0" else (volumeLevels[packageName] ?: 80).toString()
+                val process = Shizuku.newProcess(
+                    arrayOf("cmd", "media_session", "volume", "--stream", "3", "--set", volume),
+                    null, null
+                )
+                process.waitFor()
+            } catch (e: Exception) {
+                Log.e("AudioSessionManager", "Mute error: ${e.message}")
             }
         }
     }
@@ -45,12 +95,8 @@ class AudioSessionManager(private val context: Context) {
         val result = mutableListOf<AppAudioInfo>()
 
         for (config in configs) {
-            // استخدام audioAttributes بدل clientUid
-            val usage = config.audioAttributes.usage
-            val contentType = config.audioAttributes.contentType
-
-            // نجيب كل التطبيقات المثبتة ونشوف مين بيشغل صوت
-            val packageName = getPlayingPackage(usage) ?: continue
+            val uid = config.audioAttributes.usage
+            val packageName = getPackageFromUid(uid) ?: continue
             if (packageName in seen) continue
             if (packageName == context.packageName) continue
             seen.add(packageName)
@@ -71,20 +117,18 @@ class AudioSessionManager(private val context: Context) {
                     icon = icon,
                     volumeLevel = volumeLevels[packageName] ?: 80,
                     isMuted = muteStates[packageName] ?: false,
-                    uid = usage
+                    uid = uid
                 )
             )
         }
         return result
     }
 
-    private fun getPlayingPackage(usage: Int): String? {
-        // نرجع package وهمي بناءً على الـ usage type
-        return when (usage) {
-            android.media.AudioAttributes.USAGE_MEDIA -> "com.example.media"
-            android.media.AudioAttributes.USAGE_GAME -> "com.example.game"
-            android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION -> "com.example.voip"
-            else -> "com.example.app.$usage"
+    private fun getPackageFromUid(uid: Int): String? {
+        return try {
+            packageManager.getPackagesForUid(uid)?.firstOrNull()
+        } catch (e: Exception) {
+            "com.example.app.$uid"
         }
     }
 
